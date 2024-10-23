@@ -31,3 +31,41 @@ CREATE TABLE `dishes` (
         REFERENCES bills(bills_id)
         ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8;
+
+DROP TABLE IF EXISTS `raw_data_from_message`;
+CREATE TABLE `raw_data_from_message` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `date_create` DATETIME NOT NULL,
+  `writer` varchar(64) NOT NULL,
+  `messages` text NOT NULL,
+  `date_int` int(11) NOT NULL,
+  `is_done` int(1) default 0,
+  PRIMARY KEY (`id`),
+  KEY (`date_create`)
+) ENGINE=InnoDB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8;
+
+DROP TABLE IF EXISTS `cost_structure`;
+CREATE TABLE `cost_structure` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `date_create` DATETIME NOT NULL,
+  `raw_data_id` int(11) NOT NULL,
+  `group_type` varchar(64) NOT NULL,
+  `type` varchar(64) NOT NULL,
+  `summ` float(8,2) NOT NULL,
+  `date` DATETIME NOT NULL,
+  `description` varchar(64) NOT NULL,
+  `model` text,
+  `promt` text,
+  `prompt_tokens` int(11),
+  `total_tokens` int(11),
+  `completion_tokens` int(11),
+  `elapsed_time` float(5,2),
+  `raw_answer` text,
+  `answer_code` int(11),
+  PRIMARY KEY (`id`),
+  KEY (`date_create`),
+  INDEX raw_data_id (raw_data_id),
+    FOREIGN KEY (raw_data_id)
+        REFERENCES raw_data_from_message(id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8;
