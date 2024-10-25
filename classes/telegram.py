@@ -4,6 +4,9 @@ import telebot
 import config.config
 import re
 import classes.llm_parser
+import datetime
+import classes.read_pdf
+import classes.bill_parser
 
 botTelegram = telebot.TeleBot(config.config.TELEGRAM_BOT_KEY)
 
@@ -37,20 +40,54 @@ def last(message: telebot.types.Message):
 
 @botTelegram.message_handler(content_types=['text'])
 def parce_message(message: telebot.types.Message):
-    if not re.findall(r'\d+', message.text):
-        return
+    try:
+        if not re.findall(r'\d+', message.text):
+            return
 
-    model = classes.llm_parser.LLMParser()
-    result = model.parse_date(message.text, message.date, message.from_user.full_name)
+        model = classes.llm_parser.LLMParser()
+        result = model.parse_date(message.text, message.date, message.from_user.full_name)
 
-    if result != {}:
-        d = model.get_list_of_category()
-        return_text = "Данные добавлены: \n" + \
-               "  - сумма: %s\n" % result['summ'] + \
-               "  - группа: %s\n" % d[result['group']] + \
-               "  - описание: %s\n" % result['description'] + \
-               "  - дата: %s" % result['date']
-        botTelegram.reply_to(message, return_text)
+        if result != {}:
+            d = model.get_list_of_category()
+            return_text = "Данные добавлены: \n" + \
+                   "  - сумма: %s\n" % result['summ'] + \
+                   "  - группа: %s\n" % d[result['group']] + \
+                   "  - описание: %s\n" % result['description'] + \
+                   "  - дата: %s" % result['date']
+            botTelegram.reply_to(message, return_text)
+    except Exception as e:
+        botTelegram.reply_to(message, e)
+
+@botTelegram.message_handler(content_types=['document'])
+def handle_docs_pdf(message: telebot.types.Message):
+    try:
+        # пока не особо работает надо сидеть править regexp - это где-то на 2 дня занятие
+        file_info = botTelegram.get_file(message.document.file_id)
+        downloaded_file = botTelegram.download_file(file_info.file_path)
+
+        new_file_name = (config.config.CURRENT_PATH + '/pdf_data/' +
+                         datetime.datetime.today().strftime('%Y_%m_%d_%H_%M_%S') +
+                         "_" + str(message.chat.id) + ".pdf")
+
+        with open(new_file_name, 'wb') as new_file:
+            new_file.write(downloaded_file)
+
+        new_file_name_txt = new_file_name + '.txt'
+
+        pdf = classes.read_pdf.ReadPDF(new_file_name)
+        pdf.write_in_file(new_file_name_txt, pdf.parse_pdf())
+
+        parser = classes.bill_parser.BillParser()
+        result = parser.run(new_file_name_txt)
+
+        return_message = "Я сохранил этот файл: : %s\n" % new_file_name + \
+                        " - вставлено новых чеков: %s\n" % result["count_bills"] + \
+                        " - вставлено новых блюд: %s\n" % result["count_dish"] + \
+                        " - найденно существующих записей: %s\n" % result["count_bills_already_insert"]
+
+        botTelegram.reply_to(message, return_message)
+    except Exception as e:
+        botTelegram.reply_to(message, e)
 
 def run():
     botTelegram.infinity_polling()

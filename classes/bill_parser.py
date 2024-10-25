@@ -1,5 +1,7 @@
 __author__ = 'Alexey Y Manikin'
 
+from pprint import pprint
+
 from config.config import *
 from config.template import *
 import traceback
@@ -11,6 +13,9 @@ class BillParser(object):
 
     def __init__(self):
         self.connection = self.get_mysql_connection()
+
+    def __del__(self):
+        self.connection.close()
 
     @staticmethod
     def load_from_file(filename) -> str:
@@ -29,10 +34,11 @@ class BillParser(object):
                 tmp_line = ""
             else:
                 tmp_line = tmp_line + " " + line
+
         dish_result = re.findall(re_dish_format, result_line)
         dish = []
         for dr in dish_result:
-            data_dish = {'name': dr[0], 'count': int(dr[1]), 'price': float(dr[2]), 'total': float(dr[3])}
+            data_dish = {'name': str(dr[0]).strip(), 'count': int(dr[1]), 'price': float(dr[2]), 'total': float(dr[3])}
             dish.append(data_dish)
         return dish
 
@@ -48,29 +54,30 @@ class BillParser(object):
                 data['bills_hash'] = ""
 
             try:
-                data['operator'] = re.findall(operator_name, r[2])[0]
+                data['operator'] = str(re.findall(operator_name, r[2])[0]).strip()
             except:
                 data['operator'] = ""
 
             try:
-                data['operator_code'] = re.findall(operator_code, r[2])[0]
+                data['operator_code'] = str(re.findall(operator_code, r[2])[0]).strip()
             except:
                 data['operator_code'] = ""
 
             try:
-                data['paid_by'] = re.findall(paid_by, r[2])[0]
+                data['paid_by'] = str(re.findall(paid_by, r[2])[0]).strip()
             except:
                 data['paid_by'] = ""
 
             try:
-                data['table'] = re.findall(table_number, r[2])[0]
+                data['table'] = str(re.findall(table_number, r[2])[0]).strip()
             except:
                 data['table'] = ""
 
             data['dish'] = self.parce_dish(r[3])
-            data['total'] = float(r[4])
-            data['total_discount'] = float(r[5])
+            data['total'] = float(r[4].replace(" ", ""))
+            data['total_discount'] = float(r[5].replace(" ", ""))
             result_list.append(data)
+
         return result_list
 
     @staticmethod
@@ -93,13 +100,17 @@ class BillParser(object):
 
         return connection
 
-    def insert_into_table(self, list_orders: list):
+    def insert_into_table(self, list_orders: list) -> dict:
+        count_bills = 0
+        count_dish = 0
+        count_bills_already_insert = 0
+
         try:
             cursor = self.connection.cursor(MySQLdb.cursors.DictCursor)
             for r in list_orders:
-                print('SELECT count(*) as count_in_base FROM bills WHERE bills_id = %i' % r['bills_id'])
                 cursor.execute(
                     "SELECT count(*) as count_in_base FROM bills WHERE bills_id = %i" % r['bills_id'])
+
                 count_in_base = cursor.fetchone()
                 if count_in_base['count_in_base'] == 0:
                     sql = "INSERT INTO bills(date_create,bills_id,bills_hash,operator,operator_code,paied_by,table_desc,total,total_discount) "
@@ -113,8 +124,9 @@ class BillParser(object):
                                          r['table'],
                                          r['total'],
                                          r['total_discount'])
-                    print(sql + sql_insert_date)
+
                     cursor.execute(sql + sql_insert_date)
+                    count_bills += 1
                     for dr in r['dish']:
                         sql_dish = "INSERT INTO dishes(bills_id,name,item_count,price) "
                         sql_dish_insert_date = """ VALUE( %s, '%s', %s, %s)""" \
@@ -123,18 +135,22 @@ class BillParser(object):
                                              dr['count'],
                                              dr['price']
                                              )
-                        print(sql_dish + sql_dish_insert_date)
                         cursor.execute(sql_dish + sql_dish_insert_date)
+                        count_dish += 1
                     self.connection.commit()
-
+                else:
+                    count_bills_already_insert += 1
         except Exception as e:
             print(e)
 
-    def run(self, file_name: str):
+        return {"count_bills": count_bills, "count_dish": count_dish,
+                "count_bills_already_insert": count_bills_already_insert}
+
+    def run(self, file_name: str) -> dict:
         try:
             data = self.load_from_file(file_name)
             list_data = self.parce_text(data)
-            self.insert_into_table(list_data)
-
+            return self.insert_into_table(list_data)
         except Exception as e:
             print((traceback.format_exc()))
+            return {}

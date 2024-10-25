@@ -16,6 +16,9 @@ class LLMParser(object):
     def __init__(self):
         self.connection = self.get_mysql_connection()
 
+    def __del__(self):
+        self.connection.close()
+
     @staticmethod
     def get_mysql_connection() -> MySQLdb.connect:
         connection = MySQLdb.connect(host=MYSQL_HOST,
