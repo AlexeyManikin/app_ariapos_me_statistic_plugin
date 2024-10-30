@@ -49,9 +49,14 @@ def parce_message(message: telebot.types.Message):
 
         if result != {}:
             d = model.get_list_of_category()
+            try:
+                group = d[result['group']]
+            except KeyError:
+                group = result['group']
+
             return_text = "Данные добавлены: \n" + \
                    "  - сумма: %s\n" % result['summ'] + \
-                   "  - группа: %s\n" % d[result['group']] + \
+                   "  - группа: %s\n" % group + \
                    "  - описание: %s\n" % result['description'] + \
                    "  - дата: %s" % result['date']
             botTelegram.reply_to(message, return_text)
